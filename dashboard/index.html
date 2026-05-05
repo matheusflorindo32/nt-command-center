@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NT Command Center — Monitoramento de Agentes IA</title>
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --panel: #111827;
+      --border: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #f59e0b;
+      --idle: #6b7280;
+      --working: #3b82f6;
+      --error: #ef4444;
+      --done: #10b981;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    /* HEADER */
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: grid; place-items: center;
+      font-weight: bold; color: var(--bg);
+    }
+
+    .brand h1 { font-size: 1.25rem; font-weight: 600; }
+    .brand span { color: var(--muted); font-size: 0.75rem; }
+
+    .connection-badge {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--border);
+      border-radius: 999px;
+      font-size: 0.875rem;
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+    .dot.connected { background: var(--done); animation: pulse 2s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* GRID PRINCIPAL */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      overflow: hidden;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      overflow: auto;
+    }
+
+    .panel h2 {
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    /* AGENTES */
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .agent-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--idle);
+      transition: background 0.3s;
+    }
+
+    .agent-card[data-status="working"]::before { background: var(--working); }
+    .agent-card[data-status="error"]::before { background: var(--error); }
+    .agent-card[data-status="done"]::before { background: var(--done); }
+
+    .agent-card[data-status="working"] {
+      animation: working-pulse 2s infinite;
+      border-color: var(--working);
+    }
+
+    @keyframes working-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+      50% { box-shadow: 0 0 20px 0 rgba(59, 130, 246, 0.2); }
+    }
+
+    .agent-card h3 { font-size: 1rem; margin-bottom: 0.25rem; }
+    .agent-card .task { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.75rem; }
+    .agent-card .meta { font-size: 0.625rem; color: var(--muted); display: flex; justify-content: space-between; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      font-weight: 600;
+      background: var(--idle);
+      color: white;
+    }
+
+    .status-badge.working { background: var(--working); }
+    .status-badge.error { background: var(--error); }
+    .status-badge.done { background: var(--done); }
+
+    /* SESSÕES */
+    .session-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .session-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      font-size: 0.875rem;
+    }
+
+    .session-item .session-name { font-weight: 500; }
+    .session-item .session-count { color: var(--muted); font-size: 0.75rem; }
+
+    /* EVENTOS */
+    .event-log {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+    }
+
+    .event-item {
+      display: flex; gap: 0.5rem; align-items: center;
+      padding: 0.375rem 0.5rem;
+      border-radius: 4px;
+      background: var(--bg);
+    }
+
+    .event-item .time { color: var(--muted); min-width: 80px; }
+    .event-item .agent { color: var(--accent); font-weight: 600; min-width: 100px; }
+    .event-item .status { padding: 0 0.375rem; border-radius: 3px; font-size: 0.625rem; }
+    .event-item .task { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ESTATÍSTICAS */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 10px;
+    }
+
+    .stat-card .number { font-size: 2rem; font-weight: 700; color: var(--accent); }
+    .stat-card .label { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+
+    /* FULL WIDTH PANELS */
+    .span-2 { grid-column: 1 / -1; }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">NT</div>
+      <div>
+        <h1>Command Center</h1>
+        <span>Monitoramento de Agentes IA — Núcleo Tático</span>
+      </div>
+    </div>
+    <div class="connection-badge">
+      <div class="dot" id="connDot"></div>
+      <span id="connText">Desconectado</span>
+      <span id="connCount">(0 viewers)</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- ESTATÍSTICAS -->
+    <div class="panel span-2">
+      <h2>📊 Estatísticas em Tempo Real</h2>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="number" id="statEvents">0</div><div class="label">Eventos</div></div>
+        <div class="stat-card"><div class="number" id="statAgents">0</div><div class="label">Agentes</div></div>
+        <div class="stat-card"><div class="number" id="statSessions">0</div><div class="label">Sessões</div></div>
+        <div class="stat-card"><div class="number" id="statConnections">0</div><div class="label">Viewers</div></div>
+        <div class="stat-card"><div class="number" id="statWorking">0</div><div class="label">Trabalhando</div></div>
+        <div class="stat-card"><div class="number" id="statErrors">0</div><div class="label">Erros</div></div>
+      </div>
+    </div>
+
+    <!-- AGENTES -->
+    <div class="panel">
+      <h2>🤖 Agentes Ativos</h2>
+      <div class="agents-grid" id="agentsGrid">
+        <div style="color: var(--muted); text-align: center; padding: 2rem;">Aguardando agentes...</div>
+      </div>
+    </div>
+
+    <!-- SESSÕES -->
+    <div class="panel">
+      <h2>📁 Sessões</h2>
+      <div class="session-list" id="sessionList">
+        <div style="color: var(--muted); text-align: center; padding: 2rem;">Nenhuma sessão ativa</div>
+      </div>
+    </div>
+
+    <!-- LOG DE EVENTOS -->
+    <div class="panel span-2">
+      <h2>📜 Log de Eventos (Tempo Real)</h2>
+      <div class="event-log" id="eventLog">
+        <div class="event-item"><span class="time">--:--:--</span><span class="agent">SISTEMA</span><span class="status" style="background: var(--done)">READY</span><span class="task">Dashboard iniciado. Aguardando eventos...</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== CONFIGURAÇÃO ==========
+    const WS_URL = `ws://${window.location.host}`;
+    let ws = null;
+    let reconnectTimer = null;
+
+    // ========== DOM ELEMENTS ==========
+    const connDot = document.getElementById('connDot');
+    const connText = document.getElementById('connText');
+    const connCount = document.getElementById('connCount');
+    const agentsGrid = document.getElementById('agentsGrid');
+    const sessionList = document.getElementById('sessionList');
+    const eventLog = document.getElementById('eventLog');
+
+    // ========== WEBSOCKET ==========
+    function connect() {
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        console.log('[WS] Conectado');
+        connDot.classList.add('connected');
+        connText.textContent = 'Conectado';
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      };
+
+      ws.onmessage = (msg) => {
+        const { type, data } = JSON.parse(msg.data);
+        if (type === 'INIT') handleInit(data);
+        if (type === 'EVENT') handleEvent(data);
+      };
+
+      ws.onclose = () => {
+        connDot.classList.remove('connected');
+        connText.textContent = 'Reconectando...';
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('[WS] Erro:', err);
+      };
+    }
+
+    // ========== HANDLERS ==========
+    function handleInit(data) {
+      renderAgents(data.agents);
+      renderSessions(data.sessions);
+      renderStats(data);
+    }
+
+    function handleEvent(event) {
+      // Adiciona ao log
+      addLogEntry(event);
+
+      // Atualiza agente na grid (simplified — refetch via stats)
+      fetch('/stats')
+        .then(r => r.json())
+        .then(stats => renderStats(stats));
+
+      fetch('/agents')
+        .then(r => r.json())
+        .then(agents => renderAgents(agents));
+
+      fetch('/sessions')
+        .then(r => r.json())
+        .then(sessions => renderSessions(sessions));
+    }
+
+    // ========== RENDER ==========
+    function renderAgents(agents) {
+      if (!agents || agents.length === 0) {
+        agentsGrid.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 2rem;">Aguardando agentes...</div>';
+        return;
+      }
+
+      agentsGrid.innerHTML = agents.map(a => `
+        <div class="agent-card" data-status="${a.status}">
+          <h3>${a.name}</h3>
+          <div class="task">${a.task || 'Sem tarefa definida'}</div>
+          <div class="meta">
+            <span class="status-badge ${a.status}">${a.status}</span>
+            <span>${timeAgo(a.lastSeen)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderSessions(sessions) {
+      if (!sessions || sessions.length === 0) {
+        sessionList.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 2rem;">Nenhuma sessão ativa</div>';
+        return;
+      }
+
+      sessionList.innerHTML = sessions.slice(-10).map(s => `
+        <div class="session-item">
+          <span class="session-name">${s.id}</span>
+          <span class="session-count">${s.events?.length || 0} eventos</span>
+        </div>
+      `).join('');
+    }
+
+    function renderStats(data) {
+      document.getElementById('statEvents').textContent = data.totalEvents || data.events?.length || 0;
+      document.getElementById('statAgents').textContent = data.totalAgents || data.agents?.length || 0;
+      document.getElementById('statSessions').textContent = data.totalSessions || data.sessions?.length || 0;
+      document.getElementById('statConnections').textContent = data.activeConnections || data.connections || 0;
+
+      // Conta working/errors
+      const agents = data.agents || [];
+      document.getElementById('statWorking').textContent = agents.filter(a => a.status === 'working').length;
+      document.getElementById('statErrors').textContent = agents.filter(a => a.status === 'error').length;
+
+      connCount.textContent = `(${data.activeConnections || data.connections || 0} viewers)`;
+    }
+
+    function addLogEntry(event) {
+      const time = new Date(event.timestamp).toLocaleTimeString('pt-BR');
+      const colorMap = {
+        idle: 'var(--idle)',
+        working: 'var(--working)',
+        error: 'var(--error)',
+        done: 'var(--done)'
+      };
+
+      const div = document.createElement('div');
+      div.className = 'event-item';
+      div.innerHTML = `
+        <span class="time">${time}</span>
+        <span class="agent">${event.agent}</span>
+        <span class="status" style="background: ${colorMap[event.status] || colorMap.idle}">${event.status}</span>
+        <span class="task">${event.task || '-'}</span>
+      `;
+
+      eventLog.insertBefore(div, eventLog.firstChild);
+
+      // Limita log
+      while (eventLog.children.length > 100) {
+        eventLog.removeChild(eventLog.lastChild);
+      }
+    }
+
+    function timeAgo(date) {
+      const diff = Math.floor((new Date() - new Date(date)) / 1000);
+      if (diff < 60) return `${diff}s atrás`;
+      if (diff < 3600) return `${Math.floor(diff/60)}m atrás`;
+      return `${Math.floor(diff/3600)}h atrás`;
+    }
+
+    // ========== START ==========
+    connect();
+  </script>
+
+</body>
+</html>
